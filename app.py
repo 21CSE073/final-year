@@ -38,7 +38,12 @@ nltk.download('punkt_tab')
 try:
     # Load the dataset
     df = pd.read_csv('sentimentdataset.csv')
-    logger.info("Dataset loaded successfully")
+    # Clean the data
+    df['Text'] = df['Text'].str.strip()
+    df['Sentiment'] = df['Sentiment'].str.strip()
+    df['User'] = df['User'].str.strip()
+    df['Hashtags'] = df['Hashtags'].str.strip()
+    logger.info("Dataset loaded and cleaned successfully")
 
     # Load BERT model and tokenizer
     tokenizer = BertTokenizer.from_pretrained('nlptown/bert-base-multilingual-uncased-sentiment')
@@ -95,101 +100,136 @@ model.fit(X_vectorized, y)
 
 def predict_sentiment(text):
     try:
+        if not text or not isinstance(text, str):
+            logger.warning("Invalid input text for sentiment analysis")
+            return {'sentiment': 'Neutral', 'confidence': 0.0, 'error': 'Invalid input text'}
+
         result = sentiment_analyzer(text)[0]
         label = result['label']
+        score = result['score']
+
+        # Map BERT labels to our sentiment categories
         if '1' in label or '2' in label:
-            return 'Negative'
+            sentiment = 'Negative'
         elif '3' in label:
-            return 'Neutral'
+            sentiment = 'Neutral'
         else:
-            return 'Positive'
+            sentiment = 'Positive'
+
+        return {
+            'sentiment': sentiment,
+            'confidence': float(score),
+            'raw_label': label,
+            'error': None
+        }
     except Exception as e:
         logger.error(f"Error in predict_sentiment: {str(e)}")
-        return 'Neutral'
+        return {
+            'sentiment': 'Neutral',
+            'confidence': 0.0,
+            'error': str(e)
+        }
 
 
 def create_user_profiles(df, topic):
+    """Create user profiles from DataFrame using BERT model"""
     try:
-        logger.info(f"Creating profiles for topic: {topic}")
+        # Input validation
+        if df is None or df.empty:
+            logger.error("Input DataFrame is empty")
+            return {'success': False, 'error': 'No data available', 'profiles': [], 'total_profiles': 0}
 
-        # Check if required columns exist
-        required_columns = ['Text', 'Hashtags', 'User', 'Timestamp']
+        if not topic or not isinstance(topic, str):
+            logger.error("Invalid topic")
+            return {'success': False, 'error': 'Invalid topic', 'profiles': [], 'total_profiles': 0}
+
+        # Check required columns
+        required_columns = ['User', 'Text', 'Hashtags']
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
             logger.error(f"Missing required columns: {missing_columns}")
-            return []
+            return {'success': False, 'error': f'Missing required columns: {missing_columns}', 'profiles': [],
+                    'total_profiles': 0}
 
-        # Create a copy of the filtered dataframe to avoid the SettingWithCopyWarning
-        topic_filtered_df = df[
+        # Filter posts for the topic
+        filtered_df = df[
             df['Text'].str.contains(topic, case=False, na=False) |
             df['Hashtags'].str.contains(topic, case=False, na=False)
             ].copy()
 
-        if topic_filtered_df.empty:
-            logger.warning(f"No posts found for topic: {topic}")
-            return []
+        logger.info(f"Found {len(filtered_df)} posts for topic: {topic}")
 
-        logger.info(f"Found {len(topic_filtered_df)} posts for topic: {topic}")
+        if filtered_df.empty:
+            return {'success': False, 'error': f'No posts found for topic: {topic}', 'profiles': [],
+                    'total_profiles': 0}
 
-        # Analyze sentiments using BERT
-        try:
-            topic_filtered_df.loc[:, 'Predicted_Sentiment'] = topic_filtered_df['Text'].apply(predict_sentiment)
-        except Exception as e:
-            logger.error(f"Error in sentiment analysis: {str(e)}")
-            return []
+        # Analyze sentiments
+        filtered_df['Sentiment'] = filtered_df['Text'].apply(lambda x: sentiment_analyzer(x[:512])[0]['label'])
+        filtered_df['Confidence'] = filtered_df['Text'].apply(lambda x: sentiment_analyzer(x[:512])[0]['score'])
 
-        # Group by User and analyze sentiments
+        # Group by user and calculate metrics
         user_profiles = []
-        grouped_users = topic_filtered_df.groupby('User')
-
-        for user, group in grouped_users:
+        for user, group in filtered_df.groupby('User'):
             try:
-                # Create a copy of the group to avoid SettingWithCopyWarning
-                group_copy = group.copy()
+                # Calculate sentiment counts
+                sentiment_counts = group['Sentiment'].value_counts()
+                positive_count = sentiment_counts.get('POSITIVE', 0)
+                neutral_count = sentiment_counts.get('NEUTRAL', 0)
+                negative_count = sentiment_counts.get('NEGATIVE', 0)
 
-                # Calculate sentiment trends over time
-                try:
-                    group_copy['Timestamp'] = pd.to_datetime(group_copy['Timestamp'])
-                    sentiment_trend = group_copy.groupby(group_copy['Timestamp'].dt.date)[
-                        'Predicted_Sentiment'].value_counts(normalize=True).unstack(fill_value=0)
-
-                    # Convert the sentiment trend DataFrame to a dictionary with string dates
-                    sentiment_trend_dict = {}
-                    for date in sentiment_trend.index:
-                        date_str = date.strftime('%Y-%m-%d')
-                        sentiment_trend_dict[date_str] = sentiment_trend.loc[date].to_dict()
-                except Exception as e:
-                    logger.error(f"Error processing sentiment trend for user {user}: {str(e)}")
-                    sentiment_trend_dict = {}
-
-                # Get sentiment counts
-                sentiment_counts = group_copy['Predicted_Sentiment'].value_counts()
-
-                # Get hashtags, handling NaN values
+                # Get user's common hashtags
                 hashtags = []
-                if 'Hashtags' in group_copy.columns:
-                    hashtags = [str(tag) for tag in group_copy['Hashtags'].unique().tolist() if pd.notna(tag)]
+                if 'Hashtags' in group.columns:
+                    hashtags = group['Hashtags'].dropna().str.split().explode().value_counts().head(5).index.tolist()
+
+                # Get sample texts
+                sample_texts = group['Text'].head(3).tolist()
+
+                # Calculate average confidence
+                avg_confidence = group['Confidence'].mean()
 
                 profile = {
-                    'User Name': str(user),
-                    'Total Posts': int(len(group_copy)),
-                    'Positive Posts': int(sentiment_counts.get('Positive', 0)),
-                    'Neutral Posts': int(sentiment_counts.get('Neutral', 0)),
-                    'Negative Posts': int(sentiment_counts.get('Negative', 0)),
-                    'Sample Texts': group_copy['Text'].head(3).tolist(),
-                    'Common Hashtags': hashtags,
-                    'Sentiment Trend': sentiment_trend_dict
+                    'User': user,
+                    'Total_Posts': len(group),
+                    'Positive_Posts': positive_count,
+                    'Neutral_Posts': neutral_count,
+                    'Negative_Posts': negative_count,
+                    'Common_Hashtags': hashtags,
+                    'Sample_Texts': sample_texts,
+                    'Average_Confidence': round(avg_confidence, 2)
                 }
                 user_profiles.append(profile)
             except Exception as e:
                 logger.error(f"Error processing user {user}: {str(e)}")
                 continue
 
+        if not user_profiles:
+            return {'success': False, 'error': 'No valid user profiles created', 'profiles': [], 'total_profiles': 0}
+
         logger.info(f"Created {len(user_profiles)} user profiles")
-        return user_profiles
+
+        # Calculate sentiment distribution
+        total_posts = len(filtered_df)
+        if total_posts > 0:
+            sentiment_distribution = {
+                'positive': round((sum(p['Positive_Posts'] for p in user_profiles) / total_posts) * 100, 2),
+                'neutral': round((sum(p['Neutral_Posts'] for p in user_profiles) / total_posts) * 100, 2),
+                'negative': round((sum(p['Negative_Posts'] for p in user_profiles) / total_posts) * 100, 2)
+            }
+        else:
+            sentiment_distribution = {'positive': 0, 'neutral': 0, 'negative': 0}
+
+        return {
+            'success': True,
+            'profiles': user_profiles,
+            'total_profiles': len(user_profiles),
+            'total_posts': total_posts,
+            'sentiment_distribution': sentiment_distribution
+        }
+
     except Exception as e:
-        logger.error(f"Error in create_user_profiles: {str(e)}")
-        return []
+        logger.error(f"Error creating user profiles: {str(e)}")
+        return {'success': False, 'error': str(e), 'profiles': [], 'total_profiles': 0}
 
 
 # Routes
@@ -232,25 +272,59 @@ def signup():
 @login_required
 def dashboard():
     try:
-        # Get user's analyses
+        # Get user's analyses and profiles
         analyses = data_manager.get_user_analyses(current_user.id)
+        profiles = data_manager.get_user_profiles(current_user.id)
 
-        # Get user's profiles
-        user_profiles = data_manager.get_user_profiles(current_user.id)
+        # Process analyses for display
+        processed_analyses = []
+        for analysis in analyses:
+            try:
+                processed_analysis = {
+                    'id': analysis.get('id'),
+                    'title': analysis.get('title', ''),
+                    'topic': analysis.get('topic', ''),
+                    'created_at': analysis.get('timestamp', ''),
+                    'total_posts': analysis.get('total_posts', 0),
+                    'total_profiles': analysis.get('total_profiles', 0),
+                    'sentiment_distribution': analysis.get('sentiment_distribution', {}),
+                    'profiles': analysis.get('profiles', []),
+                    'results': {
+                        'topic': analysis.get('topic', ''),
+                        'sentiment_distribution': analysis.get('sentiment_distribution', {}),
+                        'profiles': analysis.get('profiles', [])
+                    }
+                }
+                processed_analyses.append(processed_analysis)
+            except Exception as e:
+                logger.error(f"Error processing analysis: {str(e)}")
+                continue
 
-        # Get quick stats
-        stats = data_manager.get_quick_stats(current_user.id)
+        # Calculate quick stats
+        total_posts = sum(analysis.get('total_posts', 0) for analysis in analyses)
+        total_profiles = sum(analysis.get('total_profiles', 0) for analysis in analyses)
+        avg_confidence = sum(profile.get('average_confidence', 0) for profile in profiles) / len(
+            profiles) if profiles else 0
 
-        # Log the data for debugging
-        app.logger.info(f"Found {len(analyses)} analyses and {len(user_profiles)} profiles for user {current_user.id}")
+        quick_stats = {
+            'total_analyses': len(analyses),
+            'total_profiles': total_profiles,
+            'total_posts': total_posts,
+            'average_confidence': round(avg_confidence, 2)
+        }
+
+        # Get recent topics
+        recent_topics = [analysis.get('topic', '') for analysis in analyses[:5] if analysis.get('topic')]
 
         return render_template('dashboard.html',
-                               analyses=analyses,
-                               user_profiles=user_profiles,
-                               stats=stats)
+                               analyses=processed_analyses,
+                               profiles=profiles,
+                               quick_stats=quick_stats,
+                               recent_topics=recent_topics)
+
     except Exception as e:
-        app.logger.error(f"Error in dashboard: {str(e)}")
-        flash('An error occurred while loading the dashboard. Please try again.', 'error')
+        logger.error(f"Error in dashboard: {str(e)}")
+        flash('An error occurred while loading the dashboard.')
         return redirect(url_for('home'))
 
 
@@ -259,80 +333,123 @@ def dashboard():
 def analyze():
     try:
         data = request.get_json()
-        analysis_type = data.get('type')
-        title = data.get('title', 'Untitled Analysis')
+        topic = data.get('topic', '')
+        analysis_type = data.get('type', 'topic')
+        title = data.get('title', f'Analysis of {topic}')
 
-        if analysis_type == 'text':
-            text = data.get('text', '')
-            if not text:
-                return jsonify({'error': 'No text provided'}), 400
+        # Get posts for the topic
+        posts = data_manager.get_posts_by_topic(topic)
 
-            # Perform sentiment analysis
-            sentiment = analyze_sentiment(text)
-            result = {
-                'type': 'text',
-                'title': title,
-                'content': text,
-                'sentiment': sentiment['label'],
-                'confidence': round(sentiment['score'] * 100, 2),
-                'sentiment_color': get_sentiment_color(sentiment['label']),
-                'sentiment_icon': get_sentiment_icon(sentiment['label'])
-            }
+        if not posts:
+            return jsonify({
+                'success': False,
+                'error': 'No posts found for this topic'
+            }), 404
 
-        elif analysis_type == 'topic':
-            topic = data.get('topic', '')
-            if not topic:
-                return jsonify({'error': 'No topic provided'}), 400
+        # Process posts and calculate sentiment
+        processed_posts = []
+        total_posts = len(posts)
+        sentiment_counts = {'positive': 0, 'neutral': 0, 'negative': 0}
+        user_sentiments = {}
 
-            # Perform topic analysis
-            analysis_results = data_manager.analyze_topic(topic)
+        for post in posts:
+            # Process text
+            processed_text = process_text(post['text'])
 
-            # Ensure all required fields are present
-            result = {
-                'type': 'topic',
-                'title': title,
-                'topic': topic,
-                'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'sentiment_distribution': analysis_results.get('sentiment_distribution', {
-                    'positive': 0,
-                    'neutral': 0,
-                    'negative': 0
-                }),
-                'profiles': analysis_results.get('profiles', []),
-                'total_posts': analysis_results.get('total_posts', 0),
-                'unique_users': analysis_results.get('unique_users', 0),
-                'average_likes': analysis_results.get('average_likes', 0),
-                'average_comments': analysis_results.get('average_comments', 0)
-            }
+            # Get sentiment prediction
+            sentiment, confidence = predict_sentiment(processed_text)
 
-            # Save user profiles
-            if result['profiles']:
-                for profile in result['profiles']:
-                    data_manager.save_user_profile(
-                        current_user.id,
-                        topic,
-                        {
-                            'Total Posts': profile['Total_Posts'],
-                            'Positive Posts': profile['Positive_Posts'],
-                            'Neutral Posts': profile['Neutral_Posts'],
-                            'Negative Posts': profile['Negative_Posts'],
-                            'Common Hashtags': profile['Common_Hashtags'],
-                            'Sentiment Trend': profile['Sentiment_Trend']
-                        }
-                    )
+            # Update sentiment counts
+            if sentiment == 'positive':
+                sentiment_counts['positive'] += 1
+            elif sentiment == 'negative':
+                sentiment_counts['negative'] += 1
+            else:
+                sentiment_counts['neutral'] += 1
 
-        else:
-            return jsonify({'error': 'Invalid analysis type'}), 400
+            # Update user sentiment counts
+            username = post.get('username', 'Unknown')
+            if username not in user_sentiments:
+                user_sentiments[username] = {
+                    'Positive_Posts': 0,
+                    'Neutral_Posts': 0,
+                    'Negative_Posts': 0,
+                    'Total_Posts': 0,
+                    'Average_Confidence': 0,
+                    'User': username
+                }
+
+            user_sentiments[username]['Total_Posts'] += 1
+            if sentiment == 'positive':
+                user_sentiments[username]['Positive_Posts'] += 1
+            elif sentiment == 'negative':
+                user_sentiments[username]['Negative_Posts'] += 1
+            else:
+                user_sentiments[username]['Neutral_Posts'] += 1
+
+            # Update average confidence
+            current_avg = user_sentiments[username]['Average_Confidence']
+            total_posts = user_sentiments[username]['Total_Posts']
+            user_sentiments[username]['Average_Confidence'] = (current_avg * (
+                        total_posts - 1) + confidence) / total_posts
+
+            processed_posts.append({
+                'text': post['text'],
+                'sentiment': sentiment,
+                'confidence': confidence,
+                'username': username
+            })
+
+        # Calculate sentiment distribution percentages
+        sentiment_distribution = {
+            'positive': round((sentiment_counts['positive'] / total_posts) * 100, 1),
+            'neutral': round((sentiment_counts['neutral'] / total_posts) * 100, 1),
+            'negative': round((sentiment_counts['negative'] / total_posts) * 100, 1)
+        }
+
+        # Convert user_sentiments to list
+        profiles = list(user_sentiments.values())
 
         # Save analysis
-        if not data_manager.save_analysis(current_user.id, result):
-            return jsonify({'error': 'Failed to save analysis'}), 500
+        analysis_id = data_manager.save_analysis(
+            user_id=current_user.id,
+            topic=topic,
+            type=analysis_type,
+            title=title,
+            total_posts=total_posts,
+            total_profiles=len(profiles),
+            sentiment_distribution=sentiment_distribution,
+            profiles=profiles,
+            product_insights={},
+            user_behavior={},
+            recommendations=[]
+        )
 
-        return jsonify(result)
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': analysis_id,
+                'topic': topic,
+                'type': analysis_type,
+                'title': title,
+                'total_posts': total_posts,
+                'total_profiles': len(profiles),
+                'sentiment_distribution': sentiment_distribution,
+                'profiles': profiles,
+                'summary': {
+                    'total_posts': total_posts,
+                    'total_profiles': len(profiles),
+                    'sentiment_distribution': sentiment_distribution
+                }
+            }
+        })
 
     except Exception as e:
-        logging.error(f"Error in analyze route: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in analyze route: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @app.route('/logout')

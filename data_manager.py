@@ -25,31 +25,74 @@ class DataManager:
     def _load_datasets(self):
         """Load all datasets"""
         try:
+            # Try different encodings
+            encodings = ['utf-8', 'latin1', 'cp1252', 'iso-8859-1']
+
             # Load sentiment dataset
             if os.path.exists('sentimentdataset.csv'):
-                self.sentiment_data = pd.read_csv('sentimentdataset.csv')
-                self.logger.info("Sentiment dataset loaded successfully")
+                for encoding in encodings:
+                    try:
+                        self.sentiment_data = pd.read_csv('sentimentdataset.csv', encoding=encoding)
+                        self.logger.info(f"Sentiment dataset loaded successfully with {encoding} encoding")
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                    except Exception as e:
+                        self.logger.error(f"Error loading sentiment dataset with {encoding} encoding: {str(e)}")
+                        continue
+                else:
+                    self.logger.warning("Could not load sentiment dataset with any supported encoding")
             else:
                 self.logger.warning("Sentiment dataset not found")
 
             # Load Flipkart dataset
             if os.path.exists('flipkart_product.csv'):
-                self.flipkart_data = pd.read_csv('flipkart_product.csv')
-                self.logger.info("Flipkart dataset loaded successfully")
+                for encoding in encodings:
+                    try:
+                        self.flipkart_data = pd.read_csv('flipkart_product.csv', encoding=encoding)
+                        self.logger.info(f"Flipkart dataset loaded successfully with {encoding} encoding")
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                    except Exception as e:
+                        self.logger.error(f"Error loading Flipkart dataset with {encoding} encoding: {str(e)}")
+                        continue
+                else:
+                    self.logger.warning("Could not load Flipkart dataset with any supported encoding")
             else:
                 self.logger.warning("Flipkart dataset not found")
 
             # Load combined dataset
             if os.path.exists('combined.csv'):
-                self.combined_data = pd.read_csv('combined.csv')
-                self.logger.info("Combined dataset loaded successfully")
+                for encoding in encodings:
+                    try:
+                        self.combined_data = pd.read_csv('combined.csv', encoding=encoding)
+                        self.logger.info(f"Combined dataset loaded successfully with {encoding} encoding")
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                    except Exception as e:
+                        self.logger.error(f"Error loading combined dataset with {encoding} encoding: {str(e)}")
+                        continue
+                else:
+                    self.logger.warning("Could not load combined dataset with any supported encoding")
             else:
                 self.logger.warning("Combined dataset not found")
 
             # Load reviews dataset
             if os.path.exists('reviews.csv'):
-                self.reviews_data = pd.read_csv('reviews.csv')
-                self.logger.info("Reviews dataset loaded successfully")
+                for encoding in encodings:
+                    try:
+                        self.reviews_data = pd.read_csv('reviews.csv', encoding=encoding)
+                        self.logger.info(f"Reviews dataset loaded successfully with {encoding} encoding")
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                    except Exception as e:
+                        self.logger.error(f"Error loading reviews dataset with {encoding} encoding: {str(e)}")
+                        continue
+                else:
+                    self.logger.warning("Could not load reviews dataset with any supported encoding")
             else:
                 self.logger.warning("Reviews dataset not found")
 
@@ -59,9 +102,12 @@ class DataManager:
     def analyze_topic(self, topic):
         """Analyze a topic using sentiment dataset and BERT model"""
         try:
-            # Initialize results
+            # Initialize results with all required fields
             results = {
                 'topic': topic,
+                'type': 'sentiment',
+                'title': f"Analysis for {topic}",
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'sentiment_distribution': {
                     'positive': 0,
                     'neutral': 0,
@@ -71,20 +117,31 @@ class DataManager:
                 'total_posts': 0,
                 'unique_users': 0,
                 'average_likes': 0,
-                'average_comments': 0
+                'average_comments': 0,
+                'total_profiles': 0,
+                'product_insights': {},
+                'user_behavior': {},
+                'recommendations': {}
             }
 
             # Analyze sentiment data
             sentiment_results = self._analyze_sentiment_data(topic)
             if sentiment_results:
-                results.update(sentiment_results)
+                # Update only the fields that exist in sentiment_results
+                for key in results.keys():
+                    if key in sentiment_results:
+                        results[key] = sentiment_results[key]
 
             return results
 
         except Exception as e:
             self.logger.error(f"Error analyzing topic: {str(e)}")
+            # Return a properly structured empty result
             return {
                 'topic': topic,
+                'type': 'sentiment',
+                'title': f"Analysis for {topic}",
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'sentiment_distribution': {
                     'positive': 0,
                     'neutral': 0,
@@ -94,7 +151,11 @@ class DataManager:
                 'total_posts': 0,
                 'unique_users': 0,
                 'average_likes': 0,
-                'average_comments': 0
+                'average_comments': 0,
+                'total_profiles': 0,
+                'product_insights': {},
+                'user_behavior': {},
+                'recommendations': {}
             }
 
     def _analyze_sentiment_data(self, topic: str) -> Dict[str, Any]:
@@ -103,40 +164,23 @@ class DataManager:
             self.logger.warning("Sentiment data is not loaded")
             return {}
 
-        # Filter data for topic from sentiment dataset only
-        topic_data = self.sentiment_data[
-            self.sentiment_data['Text'].str.contains(topic, case=False, na=False)
-        ]
-
-        if topic_data.empty:
-            self.logger.warning(f"No data found for topic: {topic}")
-            return {}
-
-        self.logger.info(f"Found {len(topic_data)} posts for topic: {topic}")
-
-        # Calculate sentiment distribution using BERT model
         try:
-            from transformers import pipeline
-            sentiment_analyzer = pipeline("sentiment-analysis",
-                                          model="nlptown/bert-base-multilingual-uncased-sentiment")
+            # Clean and prepare the data
+            self.sentiment_data['Text'] = self.sentiment_data['Text'].str.strip()
+            self.sentiment_data['Sentiment'] = self.sentiment_data['Sentiment'].str.strip()
+            self.sentiment_data['User'] = self.sentiment_data['User'].str.strip()
+            self.sentiment_data['Hashtags'] = self.sentiment_data['Hashtags'].str.strip()
 
-            # Analyze sentiment for each post
-            sentiments = []
-            for text in topic_data['Text']:
-                try:
-                    result = sentiment_analyzer(text[:512])[0]  # Limit text length for BERT
-                    label = result['label']
-                    if '1' in label or '2' in label:
-                        sentiments.append('Negative')
-                    elif '3' in label:
-                        sentiments.append('Neutral')
-                    else:
-                        sentiments.append('Positive')
-                except Exception as e:
-                    self.logger.error(f"Error analyzing sentiment: {str(e)}")
-                    sentiments.append('Neutral')
+            # Filter data for topic
+            topic_data = self.sentiment_data[
+                self.sentiment_data['Text'].str.contains(topic, case=False, na=False)
+            ]
 
-            topic_data['Sentiment'] = sentiments
+            if topic_data.empty:
+                self.logger.warning(f"No data found for topic: {topic}")
+                return {}
+
+            self.logger.info(f"Found {len(topic_data)} posts for topic: {topic}")
 
             # Calculate sentiment distribution
             sentiment_counts = topic_data['Sentiment'].value_counts()
@@ -146,6 +190,10 @@ class DataManager:
                 'neutral': round((sentiment_counts.get('Neutral', 0) / total_posts) * 100, 2),
                 'negative': round((sentiment_counts.get('Negative', 0) / total_posts) * 100, 2)
             }
+
+            # Calculate engagement metrics
+            avg_likes = topic_data['Likes'].mean() if 'Likes' in topic_data.columns else 0
+            avg_comments = topic_data['Retweets'].mean() if 'Retweets' in topic_data.columns else 0
 
             # Create user profiles
             profiles = []
@@ -166,9 +214,8 @@ class DataManager:
                     hashtags = user_data['Hashtags'].dropna().str.split().explode().value_counts().head(
                         5).index.tolist()
 
-                # Calculate engagement metrics
-                avg_likes = user_data['Likes'].mean() if 'Likes' in user_data.columns else 0
-                avg_comments = user_data['Comments'].mean() if 'Comments' in user_data.columns else 0
+                # Get sample texts
+                sample_texts = user_data['Text'].head(3).tolist()
 
                 profile = {
                     'User': user,
@@ -176,29 +223,25 @@ class DataManager:
                     'Positive_Posts': positive_count,
                     'Neutral_Posts': neutral_count,
                     'Negative_Posts': negative_count,
-                    'Average_Likes': round(avg_likes, 2),
-                    'Average_Comments': round(avg_comments, 2),
                     'Common_Hashtags': hashtags,
-                    'Sentiment_Trend': {
-                        'positive': round((positive_count / len(user_data)) * 100, 2),
-                        'neutral': round((neutral_count / len(user_data)) * 100, 2),
-                        'negative': round((negative_count / len(user_data)) * 100, 2)
-                    }
+                    'Sample_Texts': sample_texts,
+                    'Average_Confidence': 0.8  # Default confidence value
                 }
                 profiles.append(profile)
 
             self.logger.info(f"Created {len(profiles)} user profiles")
 
-            # Save profiles to CSV
-            self._save_profiles_to_csv(profiles, topic)
-
             return {
                 'sentiment_distribution': sentiment_dist,
                 'profiles': profiles,
                 'total_posts': len(topic_data),
-                'unique_users': len(profiles),
-                'average_likes': round(topic_data['Likes'].mean() if 'Likes' in topic_data.columns else 0, 2),
-                'average_comments': round(topic_data['Comments'].mean() if 'Comments' in topic_data.columns else 0, 2)
+                'unique_users': len(unique_users),
+                'average_likes': round(avg_likes, 2),
+                'average_comments': round(avg_comments, 2),
+                'total_profiles': len(profiles),
+                'product_insights': {},
+                'user_behavior': {},
+                'recommendations': {}
             }
 
         except Exception as e:
@@ -419,9 +462,9 @@ class DataManager:
         """Ensure all required CSV files exist with headers."""
         files = {
             self.users_file: ['id', 'username', 'email', 'password_hash', 'created_at', 'is_admin'],
-            self.analyses_file: ['id', 'user_id', 'title', 'analysis_type', 'content', 'created_at', 'results'],
-            self.profiles_file: ['id', 'user_id', 'topic', 'total_posts', 'positive_posts', 'neutral_posts',
-                                 'negative_posts', 'common_hashtags', 'sentiment_trend', 'created_at', 'updated_at']
+            'analyses.csv': ['id', 'user_id', 'title', 'analysis_type', 'content', 'created_at', 'results'],
+            'user_profiles.csv': ['id', 'user_id', 'username', 'total_posts', 'sentiment_counts',
+                                  'common_hashtags', 'sample_texts', 'average_confidence', 'created_at']
         }
 
         for file_path, headers in files.items():
@@ -489,44 +532,97 @@ class DataManager:
             return check_password_hash(user['password_hash'], password)
         return False
 
-    def save_analysis(self, user_id, analysis_data):
-        """Save analysis results"""
+    def save_analysis(self, user_id: int, analysis_data: Dict[str, Any]) -> bool:
+        """Save analysis results to analyses.csv"""
         try:
-            analyses = []
-            if os.path.exists(self.analyses_file):
-                analyses = pd.read_csv(self.analyses_file).to_dict('records')
+            # Read existing analyses
+            analyses_file = 'analyses.csv'
+            existing_analyses = []
+            if os.path.exists(analyses_file):
+                with open(analyses_file, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    existing_analyses = list(reader)
 
-            analysis_data['user_id'] = user_id
-            analysis_data['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            analyses.append(analysis_data)
+            # Create new analysis record
+            new_analysis = {
+                'id': len(existing_analyses) + 1,
+                'user_id': user_id,
+                'topic': analysis_data.get('topic', ''),
+                'type': 'topic',
+                'title': analysis_data.get('title', ''),
+                'timestamp': analysis_data.get('created_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                'total_posts': analysis_data.get('total_posts', 0),
+                'total_profiles': analysis_data.get('total_profiles', 0),
+                'sentiment_distribution': json.dumps(analysis_data.get('sentiment_distribution', {})),
+                'profiles': json.dumps(analysis_data.get('profiles', [])),
+                'product_insights': json.dumps(analysis_data.get('product_insights', {})),
+                'user_behavior': json.dumps(analysis_data.get('user_behavior', {})),
+                'recommendations': json.dumps(analysis_data.get('recommendations', []))
+            }
 
-            pd.DataFrame(analyses).to_csv(self.analyses_file, index=False)
+            # Add new analysis to list
+            existing_analyses.append(new_analysis)
+
+            # Save updated analyses
+            fieldnames = ['id', 'user_id', 'topic', 'type', 'title', 'timestamp',
+                          'total_posts', 'total_profiles', 'sentiment_distribution',
+                          'profiles', 'product_insights', 'user_behavior', 'recommendations']
+
+            with open(analyses_file, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(existing_analyses)
+
+            self.logger.info(f"Successfully saved analysis for topic: {analysis_data.get('topic')}")
             return True
+
         except Exception as e:
             self.logger.error(f"Error saving analysis: {str(e)}")
             return False
 
-    def get_user_analyses(self, user_id):
-        """Get all analyses for a user."""
-        analyses = []
+    def get_user_analyses(self, user_id: int) -> List[Dict[str, Any]]:
+        """Get all analyses for a user"""
         try:
-            if os.path.exists(self.analyses_file):
-                analyses_df = pd.read_csv(self.analyses_file)
-                user_analyses = analyses_df[analyses_df['user_id'] == user_id].to_dict('records')
+            if not os.path.exists('analyses.csv'):
+                return []
 
-                # Convert timestamp to created_at for compatibility
-                for analysis in user_analyses:
-                    if 'timestamp' in analysis:
-                        analysis['created_at'] = analysis['timestamp']
-                        del analysis['timestamp']
-                    if 'results' in analysis:
+            analyses = []
+            with open('analyses.csv', 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if int(row['user_id']) == user_id:
                         try:
-                            analysis['results'] = json.loads(analysis['results'])
-                        except (json.JSONDecodeError, KeyError):
-                            analysis['results'] = {}
-                    analyses.append(analysis)
+                            # Convert JSON strings back to Python objects with error handling
+                            sentiment_distribution = json.loads(row.get('sentiment_distribution', '{}'))
+                            profiles = json.loads(row.get('profiles', '[]'))
+                            product_insights = json.loads(row.get('product_insights', '{}'))
+                            user_behavior = json.loads(row.get('user_behavior', '{}'))
+                            recommendations = json.loads(row.get('recommendations', '[]'))
 
-            return sorted(analyses, key=lambda x: x.get('created_at', ''), reverse=True)
+                            analysis = {
+                                'id': int(row['id']),
+                                'user_id': int(row['user_id']),
+                                'topic': row.get('topic', ''),
+                                'type': row.get('type', 'topic'),
+                                'title': row.get('title', ''),
+                                'timestamp': row.get('timestamp', ''),
+                                'total_posts': int(row.get('total_posts', 0)),
+                                'total_profiles': int(row.get('total_profiles', 0)),
+                                'sentiment_distribution': sentiment_distribution,
+                                'profiles': profiles,
+                                'product_insights': product_insights,
+                                'user_behavior': user_behavior,
+                                'recommendations': recommendations
+                            }
+                            analyses.append(analysis)
+                        except (json.JSONDecodeError, ValueError) as e:
+                            self.logger.error(f"Error parsing analysis data: {str(e)}")
+                            continue
+
+            # Sort analyses by timestamp in descending order (newest first)
+            analyses.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+            return analyses
+
         except Exception as e:
             self.logger.error(f"Error getting user analyses: {str(e)}")
             return []
@@ -557,22 +653,40 @@ class DataManager:
     def get_user_profiles(self, user_id):
         """Get all profiles associated with a user."""
         try:
-            if not os.path.exists('profiles.csv'):
+            profiles_file = 'user_profiles.csv'
+            if not os.path.exists(profiles_file):
                 return []
 
-            profiles_df = pd.read_csv('profiles.csv')
-            user_profiles = profiles_df[profiles_df['user_id'] == user_id].to_dict('records')
+            profiles = []
+            with open(profiles_file, 'r', newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row['user_id'] == str(user_id):
+                        try:
+                            # Parse JSON fields with proper error handling
+                            sentiment_counts = json.loads(row.get('sentiment_counts', '{}'))
+                            common_hashtags = json.loads(row.get('common_hashtags', '[]'))
+                            sample_texts = json.loads(row.get('sample_texts', '[]'))
 
-            # Convert string representations back to lists/dicts
-            for profile in user_profiles:
-                if 'hashtags' in profile:
-                    profile['hashtags'] = eval(profile['hashtags'])
-                if 'sentiment_trend' in profile:
-                    profile['sentiment_trend'] = eval(profile['sentiment_trend'])
+                            profile = {
+                                'id': row.get('id'),
+                                'username': row.get('username', ''),
+                                'total_posts': int(row.get('total_posts', 0)),
+                                'sentiment_counts': sentiment_counts,
+                                'common_hashtags': common_hashtags,
+                                'sample_texts': sample_texts,
+                                'average_confidence': float(row.get('average_confidence', 0.0)),
+                                'created_at': row.get('created_at')
+                            }
+                            profiles.append(profile)
+                        except (json.JSONDecodeError, ValueError) as e:
+                            self.logger.error(f"Error parsing profile data: {str(e)}")
+                            continue
 
-            return user_profiles
+            return profiles
+
         except Exception as e:
-            logging.error(f"Error getting user profiles: {str(e)}")
+            self.logger.error(f"Error getting user profiles: {str(e)}")
             return []
 
     def get_quick_stats(self, user_id):
@@ -583,4 +697,38 @@ class DataManager:
         return {
             'total_analyses': len(analyses),
             'total_profiles': len(profiles)
-        } 
+        }
+
+    def get_posts_by_topic(self, topic: str) -> List[Dict[str, Any]]:
+        """Get posts related to a specific topic"""
+        try:
+            if self.df is None:
+                self.load_dataset()
+
+            # Convert topic to lowercase for case-insensitive matching
+            topic = topic.lower()
+
+            # Filter posts that contain the topic in their text
+            mask = self.df['text'].str.lower().str.contains(topic, na=False)
+            topic_posts = self.df[mask].copy()
+
+            if topic_posts.empty:
+                return []
+
+            # Convert DataFrame to list of dictionaries
+            posts = []
+            for _, row in topic_posts.iterrows():
+                post = {
+                    'text': row['text'],
+                    'username': row['username'],
+                    'date': row['date'],
+                    'likes': row['likes'],
+                    'comments': row['comments']
+                }
+                posts.append(post)
+
+            return posts
+
+        except Exception as e:
+            self.logger.error(f"Error getting posts by topic: {str(e)}")
+            return []
