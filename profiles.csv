@@ -1,0 +1,25 @@
+id,user_id,topic,total_posts,positive_posts,neutral_posts,negative_posts,common_hashtags,sentiment_trend,created_at,updated_at
+1,1,technology,1,1,0,0,"[""#Tech"", ""#Innovation""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:31:42,2025-03-23 04:31:42
+2,1,technology,1,0,0,1,"[""#TechIssues"", ""#HighSchoolTech""]","{""positive"": 0.0, ""neutral"": 0.0, ""negative"": 100.0}",2025-03-23 04:31:42,2025-03-23 04:31:42
+3,1,technology,1,1,0,0,"[""#Tech"", ""#Innovation""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:31:42,2025-03-23 04:31:42
+4,1,technology,1,0,0,1,"[""#TechIssues"", ""#HighSchoolTech""]","{""positive"": 0.0, ""neutral"": 0.0, ""negative"": 100.0}",2025-03-23 04:31:42,2025-03-23 04:31:42
+5,1,fitness,1,1,0,0,"[""#NewYear"", ""#FitnessGoals""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:32:15,2025-03-23 04:32:15
+6,1,fitness,1,1,0,0,"[""#FitnessChallenge"", ""#NewBeginnings""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:32:15,2025-03-23 04:32:15
+7,1,fitness,1,1,0,0,"[""#Pride"", ""#FitnessChallengeCompleted""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:32:15,2025-03-23 04:32:15
+8,1,fitness,1,1,0,0,"[""#Elation"", ""#FitnessMilestone""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:32:15,2025-03-23 04:32:15
+9,1,fitness,1,1,0,0,"[""#Motivation"", ""#FitnessGoals""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:32:15,2025-03-23 04:32:15
+10,1,fitness,1,1,0,0,"[""#NewYear"", ""#FitnessGoals""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:32:15,2025-03-23 04:32:15
+11,1,fitness,1,1,0,0,"[""#FitnessChallenge"", ""#NewBeginnings""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:32:15,2025-03-23 04:32:15
+12,1,fitness,1,1,0,0,"[""#Pride"", ""#FitnessChallengeCompleted""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:32:15,2025-03-23 04:32:15
+13,1,fitness,1,1,0,0,"[""#Elation"", ""#FitnessMilestone""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:32:15,2025-03-23 04:32:15
+14,1,fitness,1,1,0,0,"[""#Motivation"", ""#FitnessGoals""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:32:15,2025-03-23 04:32:15
+15,1,fitness,1,1,0,0,"[""#NewYear"", ""#FitnessGoals""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:37:06,2025-03-23 04:37:06
+16,1,fitness,1,1,0,0,"[""#FitnessChallenge"", ""#NewBeginnings""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:37:06,2025-03-23 04:37:06
+17,1,fitness,1,1,0,0,"[""#Pride"", ""#FitnessChallengeCompleted""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:37:06,2025-03-23 04:37:06
+18,1,fitness,1,1,0,0,"[""#Elation"", ""#FitnessMilestone""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:37:06,2025-03-23 04:37:06
+19,1,fitness,1,1,0,0,"[""#Motivation"", ""#FitnessGoals""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:37:06,2025-03-23 04:37:06
+20,1,fitness,1,1,0,0,"[""#NewYear"", ""#FitnessGoals""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:37:06,2025-03-23 04:37:06
+21,1,fitness,1,1,0,0,"[""#FitnessChallenge"", ""#NewBeginnings""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:37:06,2025-03-23 04:37:06
+22,1,fitness,1,1,0,0,"[""#Pride"", ""#FitnessChallengeCompleted""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:37:06,2025-03-23 04:37:06
+23,1,fitness,1,1,0,0,"[""#Elation"", ""#FitnessMilestone""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:37:06,2025-03-23 04:37:06
+24,1,fitness,1,1,0,0,"[""#Motivation"", ""#FitnessGoals""]","{""positive"": 100.0, ""neutral"": 0.0, ""negative"": 0.0}",2025-03-23 04:37:06,2025-03-23 04:37:06
